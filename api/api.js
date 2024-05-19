@@ -2,7 +2,7 @@
 const express = require('express');
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, set } = require('firebase/database');
-const { getFirestore, collection, addDoc } = require('firebase/firestore');
+const { getFirestore, collection, addDoc, getDocs } = require('firebase/firestore');
 require('dotenv').config();
 
 // Configuración de Firebase desde variables de entorno
@@ -99,6 +99,75 @@ app.get('/ObtenerHoraChang', async (req, res) => {
   }
 });
 
+
+app.get('/ObtenerHoraXimena', async (req, res) => {
+  try {
+    const nombre = "Ximena Elizardi";
+    const hora = new Date().toLocaleTimeString();
+    const data = {
+      nombre: nombre,
+      hora: hora,
+      hello: "Hello-World!"
+    };
+
+    // Guardar los datos en Firestore
+    const docRef = await addDoc(collection(firestore, "messages"), data);
+    
+    // Verificar si estamos en un entorno de navegador antes de enviar un evento de analytics
+    if (typeof window !== 'undefined') {
+      const { getAnalytics } = require('firebase/analytics');
+      const analytics = getAnalytics(firebaseApp);
+      await analytics.logEvent('select_content', {
+        content_type: 'image',
+        item_id: docRef.id
+      });
+    }
+
+    res.json({ result: `Mensaje con ID: ${docRef.id} agregado.` });
+    console.log("Evento enviado correctamente a Firebase Analytics:", docRef.id);
+
+  } catch (error) {
+    console.error("Error al guardar los datos en Firestore:", error);
+    res.status(500).json({ error: "Error al guardar los datos en Firestore" });
+  }
+});
+
+
+// Ruta para obtener todos los mensajes guardados y contar los nombres
+app.get('/ObtenerMensajes', async (req, res) => {
+  try {
+    const messagesRef = collection(firestore, 'messages');
+    const querySnapshot = await getDocs(messagesRef);
+    const messages = [];
+    querySnapshot.forEach((doc) => {
+      messages.push({ id: doc.id, ...doc.data() });
+    });
+    console.log("Data de mensajes:", messages); // Imprimir la data en la consola
+
+    // Contar los nombres en los mensajes
+    const conteo = contarNombres(messages);
+
+    // Responder con un objeto JSON que contiene el conteo de nombres
+    res.status(200).json(conteo);
+  } catch (error) {
+    console.error("Error al obtener los mensajes:", error);
+    res.status(500).json({ error: "Error al obtener los mensajes" });
+  }
+});
+
+// Función para contar los nombres en los mensajes
+function contarNombres(mensajes) {
+  const conteo = {};
+  mensajes.forEach(mensaje => {
+    const nombre = mensaje.nombre;
+    if (nombre in conteo) {
+      conteo[nombre]++;
+    } else {
+      conteo[nombre] = 1;
+    }
+  });
+  return conteo;
+}
 // Puerto en el que escucha el servidor
 const PORT = process.env.PORT || 3000;
 
