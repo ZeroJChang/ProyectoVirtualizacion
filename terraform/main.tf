@@ -1,50 +1,121 @@
 terraform {
   required_providers {
     kubernetes = {
-      source = "hashicorp/kubernetes"
+      source  = "hashicorp/kubernetes"
       version = "~> 2.0"
     }
-    docker = {  # Explicitly specify the provider source
-      source = "kreuzwerker/docker"
-      version = "~> 2.7"
+  }
+}
+
+provider "kubernetes" {
+  config_path    = "~/.kube/config"
+  config_context = "docker-desktop"
+}
+
+# Deployment para la API
+resource "kubernetes_deployment" "api" {
+  metadata {
+    name = "api-deployment"
+  }
+
+  spec {
+    replicas = 1
+    selector {
+      match_labels = {
+        app = "api"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "api"
+        }
+      }
+
+      spec {
+        container {
+          image = "localhost:5000/api:latest"
+          name  = "api"
+          port {
+            container_port = 3000
+          }
+        }
+      }
     }
   }
 }
 
-# ... rest of your configuration ...
-
-
-provider "docker" {
-  host = "tcp://localhost:2375"  # Specify the Docker daemon host (optional)
-}
-
-# Recurso para crear la red de Docker si es necesario
-resource "docker_network" "api_network" {
-  name = "api-network"
-}
-
-# Resource for creating the API container with Docker login
-resource "docker_container" "api_container" {
-  name = "api-container"
-  image = "api:latest"  # Name of the image and tag to use
-  network_mode = docker_network.api_network.name
-  restart = "unless-stopped"
-  ports {
-    internal = 3000
-    external = 3000
+# Service para la API
+resource "kubernetes_service" "api" {
+  metadata {
+    name = "api-service"
   }
-  depends_on = [docker_network.api_network]
+
+  spec {
+    selector = {
+      app = "api"
+    }
+
+    port {
+      port        = 3000
+      target_port = 3000
+    }
+
+    type = "LoadBalancer"
+  }
 }
 
-# Resource for creating the NGINX container with Docker login
-resource "docker_container" "nginx_container" {
-  name = "nginx-container"
-  image = "nginx:latest"  # Name of the image and tag to use
-  network_mode = docker_network.api_network.name
-  restart = "unless-stopped"
-  ports {
-    internal = 80
-    external = 80
+# Deployment para Nginx
+resource "kubernetes_deployment" "nginx" {
+  metadata {
+    name = "nginx-deployment"
   }
-  depends_on = [docker_network.api_network]
+
+  spec {
+    replicas = 2
+    selector {
+      match_labels = {
+        app = "nginx"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "nginx"
+        }
+      }
+
+      spec {
+        container {
+          image = "localhost:5000/ngnix_proyecto:latest"
+          name  = "nginx"
+          port {
+            container_port = 80
+          }
+        }
+      }
+    }
+  }
+}
+
+# Service para Nginx
+resource "kubernetes_service" "nginx" {
+  metadata {
+    name = "nginx-service"
+  }
+
+  spec {
+    selector = {
+      app = "nginx"
+    }
+
+    port {
+      port        = 80
+      target_port = 80
+    }
+
+    type = "LoadBalancer"
+  }
 }
